@@ -1,13 +1,293 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>HTML 5 Boilerplate</title>
-    <link rel="stylesheet" href="style.css">
-  </head>
-  <body>
-	<script></script>
-  </body>
+    <title>Female Education Rate vs Birth Rate</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Correlation between Female Education Completion Rate and Birth Rate</h1>
+    <p><b>Motivation: </b>While working with the <a href="https://www.kaggle.com/datasets/nelgiriyewithana/world-educational-data/data">World Educational Dataset</a>
+         for an earlier assignment (creating a Tableau Dashboard), I noticed a trend between the birth rate and school completion rate of different countries.
+          I've chosen to focus on the female completion rates of primary, lower-secondary, and upper secondary School 
+          and how they compare to the rates of other countries whith different birth rates. <br>
+        <b>Preliminary Filtering: </b> I have filtered out any countries with zero values in completion rates to eliminate outliers where the data was incomplete. 
+        I have also filtered out the ability to filter birth rates below 9% to ensure we have enough data points to observe a trend. 
+        </p>
+        <hr>
+        <p><b>Usage:</b>
+        <ul>
+            <li>Click on the buttons to navigate between scenes</li>
+            <li>Drag the slider to adjust the maximum birth rate</li>
+            <li>Hover over the data points to see additional details</li>
+        </ul>
+        <p id="note"><b>Don't forget to read the observations at the bottom of the page</b></p>
+
+    <div class="button-container">
+        <button id="prev" disabled>Prev</button>
+        <button id="btn1" class="active">1</button>
+        <button id="btn2">2</button>
+        <button id="btn3">3</button>
+        <button id="next">Next</button>
+    </div>
+
+    <div class="slider-container">
+        <label for="birthRateSlider">Filter by Birth Rate: </label>
+        <input type="range" id="birthRateSlider" min="9" max="50" step="1" value="35">
+        <span id="birthRateValue">35</span>%
+    </div>
+
+    <svg class="chart"></svg>
+    <div class="tooltip"></div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://rawgit.com/susielu/d3-annotation/master/d3-annotation.min.js"></script>
+    <script>
+
+        const margin = { top: 20, right: 30, bottom: 60, left: 60 },
+              width = 800 - margin.left - margin.right,
+              height = 500 - margin.top - margin.bottom;
+
+        const svg = d3.select(".chart")
+                      .attr("width", width + margin.left + margin.right)
+                      .attr("height", height + margin.top + margin.bottom)
+                      .append("g")
+                      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const tooltip = d3.select(".tooltip");
+
+        d3.csv("https://spate472.github.io/Global_Education.csv").then(data => {
+            data.forEach(d => {
+                d.Birth_Rate = +d.Birth_Rate;
+                d.Completion_Rate_Upper_Secondary_Female = +d.Completion_Rate_Upper_Secondary_Female;
+                d.Completion_Rate_Lower_Secondary_Female = +d.Completion_Rate_Lower_Secondary_Female;
+                d.Completion_Rate_Primary_Female = +d.Completion_Rate_Primary_Female;
+            });
+
+            let filteredData = data.filter(d => d.Birth_Rate > 8 && d.Birth_Rate <= 35 && 
+                                                   (d.Completion_Rate_Upper_Secondary_Female > 0 || 
+                                                    d.Completion_Rate_Lower_Secondary_Female > 0 ||
+                                                    d.Completion_Rate_Primary_Female > 0));
+
+            function linearRegression(data, xColumn, yColumn) {
+                const n = data.length;
+                const sumX = d3.sum(data, d => d[xColumn]);
+                const sumY = d3.sum(data, d => d[yColumn]);
+                const sumXY = d3.sum(data, d => d[xColumn] * d[yColumn]);
+                const sumX2 = d3.sum(data, d => d[xColumn] * d[xColumn]);
+                const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                const intercept = (sumY - slope * sumX) / n;
+
+                return { slope, intercept };
+            }
+
+            let activeButton = "btn1";
+
+            function renderChart(yAxisColumn, yAxisLabel) {
+                svg.selectAll("*").remove();
+
+                const x = d3.scaleLinear()
+                            .domain([0, 50])
+                            .range([0, width]);
+
+                const y = d3.scaleLinear()
+                            .domain([0, 100])
+                            .range([height, 0]);
+
+                svg.append("g")
+                   .attr("transform", `translate(0,${height})`)
+                   .call(d3.axisBottom(x).tickFormat(d3.format(".2f")));
+
+                svg.append("g")
+                   .call(d3.axisLeft(y).tickFormat(d3.format(".2f")));
+
+                svg.append("text")
+                   .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
+                   .style("text-anchor", "middle")
+                   .attr("class", "axis-label")
+                   .text("Birth Rate (%)");
+
+                svg.append("text")
+                   .attr("transform", "rotate(-90)")
+                   .attr("y", -margin.left + 10)
+                   .attr("x", -height / 2)
+                   .style("text-anchor", "middle")
+                   .attr("class", "axis-label")
+                   .text(`${yAxisLabel} (%)`);
+
+                svg.append("g")
+                   .selectAll("dot")
+                   .data(filteredData)
+                   .join("circle")
+                   .attr("cx", d => x(d.Birth_Rate))
+                   .attr("cy", d => y(d[yAxisColumn]))
+                   .attr("r", 5)
+                   .style("fill", "#69b3a2")
+                   .on("mouseover", (event, d) => {
+                       tooltip.style("visibility", "visible")
+                              .html(`Country: ${d["Countries and areas"]}<br>Birth Rate: ${d.Birth_Rate.toFixed(2)}<br>Completion Rate: ${d[yAxisColumn]}`)
+                              .style("left", `${event.pageX + 5}px`)
+                              .style("top", `${event.pageY - 28}px`);
+                   })
+                   .on("mouseout", () => {
+                       tooltip.style("visibility", "hidden");
+                   });
+
+                const { slope, intercept } = linearRegression(filteredData, "Birth_Rate", yAxisColumn);
+
+                const trendLineStart = {
+                    x: x(d3.min(filteredData, d => d.Birth_Rate)),
+                    y: y(slope * d3.min(filteredData, d => d.Birth_Rate) + intercept)
+                };
+
+                const trendLineEnd = {
+                    x: x(d3.max(filteredData, d => d.Birth_Rate)),
+                    y: y(slope * d3.max(filteredData, d => d.Birth_Rate) + intercept)
+                };
+
+                const trendLine = svg.append("line")
+                                    .attr("class", "trend-line")
+                                    .attr("x1", trendLineStart.x)
+                                    .attr("y1", trendLineStart.y)
+                                    .attr("x2", trendLineEnd.x)
+                                    .attr("y2", trendLineEnd.y);
+
+                const annotations = [
+                    {
+                        note: {
+                            label: `Slope: ${slope.toFixed(2)}`,
+                            title: "Correlation"
+                        },
+                        x: (trendLineStart.x + trendLineEnd.x) / 2,
+                        y: (trendLineStart.y + trendLineEnd.y) / 2,
+                        dy: (-(trendLineStart.y + trendLineEnd.y) / 2) + 20,
+                        dx: (width - (trendLineStart.x + trendLineEnd.x) / 2) - 100,
+                        subject: {
+                            radius: 5
+                        }
+                    }
+                ];
+
+                const makeAnnotations = d3.annotation().annotations(annotations);
+
+                svg.append("g")
+                .attr("class", "annotations")
+                .call(makeAnnotations);
+
+                if (yAxisColumn == "Completion_Rate_Primary_Female") {
+                    d3.select("#outcome1").classed("hidden", false);
+                    d3.select("#outcome2").classed("hidden", true);
+                    d3.select("#outcome3").classed("hidden", true);
+                } else if (yAxisColumn == "Completion_Rate_Lower_Secondary_Female") {
+                    d3.select("#outcome1").classed("hidden", true);
+                    d3.select("#outcome2").classed("hidden", false);
+                    d3.select("#outcome3").classed("hidden", true);
+                } else {
+                    d3.select("#outcome1").classed("hidden", true);
+                    d3.select("#outcome2").classed("hidden", true);
+                    d3.select("#outcome3").classed("hidden", false);
+                }
+            }
+
+            function updateButtons(activeButtonId) {
+                activeButton = activeButtonId;
+                const buttonIds = ["btn1", "btn2", "btn3"];
+                const activeIndex = buttonIds.indexOf(activeButtonId);
+                
+                d3.selectAll("button").classed("active", false);
+                d3.select(`#${activeButtonId}`).classed("active", true);
+                d3.select("#prev").attr("disabled", activeIndex === 0 ? true : null);
+                d3.select("#next").attr("disabled", activeIndex === buttonIds.length - 1 ? true : null);
+            }
+
+            function handlePrevNextClick(direction) {
+                const buttonIds = ["btn1", "btn2", "btn3"];
+                const activeIndex = buttonIds.indexOf(activeButton);
+                let newIndex = activeIndex;
+
+                if (direction === "prev" && activeIndex > 0) {
+                    newIndex = activeIndex - 1;
+                } else if (direction === "next" && activeIndex < buttonIds.length - 1) {
+                    newIndex = activeIndex + 1;
+                }
+
+                const newActiveButtonId = buttonIds[newIndex];
+                updateButtons(newActiveButtonId);
+
+                if (newActiveButtonId === "btn1") {
+                    renderChart("Completion_Rate_Primary_Female", "Completion Rate Primary Female");
+                } else if (newActiveButtonId === "btn2") {
+                    renderChart("Completion_Rate_Lower_Secondary_Female", "Completion Rate Lower Secondary Female");
+                } else if (newActiveButtonId === "btn3") {
+                    renderChart("Completion_Rate_Upper_Secondary_Female", "Completion Rate Upper Secondary Female");
+                }
+            }
+
+            renderChart("Completion_Rate_Primary_Female", "Completion Rate Primary Female");
+
+            d3.select("#btn1").on("click", () => {
+                updateButtons("btn1");
+                renderChart("Completion_Rate_Primary_Female", "Completion Rate Primary Female");
+            });
+
+            d3.select("#btn2").on("click", () => {
+                updateButtons("btn2");
+                renderChart("Completion_Rate_Lower_Secondary_Female", "Completion Rate Lower Secondary Female");
+            });
+
+            d3.select("#btn3").on("click", () => {
+                updateButtons("btn3");
+                renderChart("Completion_Rate_Upper_Secondary_Female", "Completion Rate Upper Secondary Female");
+            });
+
+            d3.select("#prev").on("click", () => handlePrevNextClick("prev"));
+            d3.select("#next").on("click", () => handlePrevNextClick("next"));
+
+            d3.select("#birthRateSlider").on("input", function() {
+                const sliderValue = +this.value;
+                d3.select("#birthRateValue").text(sliderValue);
+
+                filteredData = data.filter(d => d.Birth_Rate <= sliderValue && d.Birth_Rate > 8 &&
+                    (d.Completion_Rate_Primary_Female > 0 || 
+                    d.Completion_Rate_Lower_Secondary_Female > 0 ||
+                    d.Completion_Rate_Upper_Secondary_Female > 0));
+
+                if (activeButton === "btn1") {
+                    renderChart("Completion_Rate_Primary_Female", "Completion Rate Primary Female");
+                } else if (activeButton === "btn2") {
+                    renderChart("Completion_Rate_Lower_Secondary_Female", "Completion Rate Lower Secondary Female");
+                } else if (activeButton === "btn3") {
+                    renderChart("Completion_Rate_Upper_Secondary_Female", "Completion Rate Upper Secondary Female");
+                }
+            });
+        });
+    </script>
+
+    <hr>
+    <p><b>Observations:</b></p>
+    <p id="outcome1">While comparing the rate at which females are completing <u>primary school</u> against the birth rate of different countries, 
+        we can notice that there is a large grouping of countries which have above a 90% completion rate regardless of the birth rate. 
+        We may also notice that there was more variability in the completion rate as we looked at countries with higher birth rates. 
+        Though we fitted a linear regression line to this data and noticed a <u>slope of -1.51 when filtering the birth rate at 35%</u>, 
+        we cannot make any harsh conclusions because we still noticed many high completion rates amongst many countries, regardless of high birth rates.</p>
+    <p id="outcome2">Now, we are comparing the rate at which females are completing <u>lower secondary school</u> against the birth rate of different countries, 
+        and we can notice that the data has spread out in the vertical dimension - meaning that there is a greater difference in completion rate 
+        as birth rate increases in lower secondary school than primary school. We may also notice that the 
+        <u>slope of our linear regression line is now -2.45 when filtering the birth rate at 35%</u> 
+        which indicates that there seems to be a stronger negative relationship in birth rates and completion of lower secondary school.</p>
+    <p id="outcome3">Finally, we are comparing the rate at which females are completing <u>upper secondary school</u> against the birth rate of different countries, 
+        and we can notice that the data has spread out even further in the vertical dimension - meaning that there is an even greater difference in completion rate 
+        as birth rate increases in upper secondary school than lower secondary school and primary school. 
+        We may also notice that the <u>slope of our linear regression line is now -2.64 when filtering the birth rate at 35%</u> 
+        which indicates that there seems to be an even stronger negative relationship in birth rates and completion of upper secondary school. 
+        Though it makes sense that a school completion percentage would dwindle as the level of school increses, it is still very interesting to see 
+        how far the points (countries) drop vertically and how they compare horizontally to other points (countries). 
+        In realizing the magnitude of these negative slopes, we may suspect there is a strong negative relationship between a country's female completion rate of 
+        school and a country's birth rate. To confirm my suspicions, I researched the topic and found an 
+        <a href="https://blogs.worldbank.org/en/health/female-education-and-childbearing-closer-look-data#:~:text=A%20negative%20correlation%20is%20most,rates%20of%20age%2Dspecific%20fertility.">article</a> which
+        supported our findings!
+    </p>
+</body>
 </html>
