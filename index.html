@@ -83,6 +83,17 @@
                 return { slope, intercept };
             }
 
+            function resetSlider() {
+                const sliderValue = 35;
+                d3.select("#birthRateSlider").property("value", sliderValue);
+                d3.select("#birthRateValue").text(sliderValue);
+
+                filteredData = data.filter(d => d.Birth_Rate <= sliderValue && d.Birth_Rate > 8 &&
+                    (d.Completion_Rate_Primary_Female > 0 || 
+                    d.Completion_Rate_Lower_Secondary_Female > 0 ||
+                    d.Completion_Rate_Upper_Secondary_Female > 0));
+            }
+
             let activeButton = "btn1";
 
             function renderChart(yAxisColumn, yAxisLabel) {
@@ -215,6 +226,7 @@
 
                 const newActiveButtonId = buttonIds[newIndex];
                 updateButtons(newActiveButtonId);
+                resetSlider();
 
                 if (newActiveButtonId === "btn1") {
                     renderChart("Completion_Rate_Primary_Female", "Completion Rate Primary Female");
@@ -229,16 +241,19 @@
 
             d3.select("#btn1").on("click", () => {
                 updateButtons("btn1");
+                resetSlider();
                 renderChart("Completion_Rate_Primary_Female", "Completion Rate Primary Female");
             });
 
             d3.select("#btn2").on("click", () => {
                 updateButtons("btn2");
+                resetSlider();
                 renderChart("Completion_Rate_Lower_Secondary_Female", "Completion Rate Lower Secondary Female");
             });
 
             d3.select("#btn3").on("click", () => {
                 updateButtons("btn3");
+                resetSlider();
                 renderChart("Completion_Rate_Upper_Secondary_Female", "Completion Rate Upper Secondary Female");
             });
 
